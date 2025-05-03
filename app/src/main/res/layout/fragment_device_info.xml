@@ -58,7 +58,7 @@
                 android:id="@+id/tvSystemBuildDate"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/system_build_date_label_placeholder"
+                android:text="@string/system_version_label_placeholder"
                 android:textColor="@android:color/white"
                 android:textSize="16sp" />
                 
@@ -66,7 +66,7 @@
                 android:id="@+id/tvAppBuildDate"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/app_build_date_label_placeholder"
+                android:text="@string/system_app_version_label_placeholder"
                 android:textColor="@android:color/white"
                 android:textSize="16sp" />
         </LinearLayout>

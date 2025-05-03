@@ -129,21 +129,30 @@ public class MainActivity extends AppCompatActivity {
         binding.navDeviceInfo.setOnClickListener(v -> {
             navController.navigate(R.id.navigation_device_info);
             updateNavSelection(binding.navDeviceInfo);
+            overrideNavAnimation(false);
         });
         
         binding.navSystemUpdate.setOnClickListener(v -> {
             navController.navigate(R.id.navigation_system_update);
             updateNavSelection(binding.navSystemUpdate);
+            overrideNavAnimation(true);
         });
         
         binding.navMcuUpdate.setOnClickListener(v -> {
             navController.navigate(R.id.navigation_mcu_update);
             updateNavSelection(binding.navMcuUpdate);
+            overrideNavAnimation(true);
         });
         
         binding.navSystemApp.setOnClickListener(v -> {
             navController.navigate(R.id.navigation_system_app);
             updateNavSelection(binding.navSystemApp);
+            overrideNavAnimation(true);
+        });
+        
+        // 添加导航监听器以触发动画
+        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
+            // 动画已在点击事件中处理
         });
         
         // Set initial selection
@@ -585,6 +594,15 @@ public class MainActivity extends AppCompatActivity {
         
         // 重置下载状态
         setDownloading(false);
+    }
+
+    // 添加导航动画
+    private void overrideNavAnimation(boolean goingRight) {
+        if (goingRight) {
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
+        } else {
+            overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right);
+        }
     }
 
 }

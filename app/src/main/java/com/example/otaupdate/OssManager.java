@@ -44,6 +44,14 @@ public class OssManager {
     
     // 当前下载任务引用，用于取消下载
     private OSSAsyncTask<GetObjectResult> currentDownloadTask = null;
+    
+    // 用于保存暂停前的状态
+    private String pausedObjectKey = null;
+    private String pausedDestinationPath = null;
+    private DownloadCallback pausedCallback = null;
+    private boolean isPaused = false;
+    private long downloadedSize = 0;
+    private long totalSize = 0;
 
     // Callback Interfaces
     public interface OssCallback<T> {
@@ -424,10 +432,19 @@ public class OssManager {
         Log.d(TAG, "Download task started: " + objectKey);
         GetObjectRequest request = new GetObjectRequest(bucketName, objectKey);
 
+        // 保存下载参数，以便暂停时使用
+        pausedObjectKey = objectKey;
+        pausedDestinationPath = destinationPath;
+        pausedCallback = callback;
+
         // 正确设置进度回调
         request.setProgressListener(new OSSProgressCallback<GetObjectRequest>() {
             @Override
             public void onProgress(GetObjectRequest request, long currentSize, long totalSize) {
+                // 保存当前下载进度
+                downloadedSize = currentSize;
+                OssManager.this.totalSize = totalSize;
+                
                 // 回调到主线程更新 UI
                 mainThreadHandler.post(() -> callback.onProgress(currentSize, totalSize));
             }
@@ -632,6 +649,80 @@ public class OssManager {
             currentDownloadTask = null;
         } else {
             Log.d(TAG, "No active download task to cancel");
+        }
+        
+        // 清除暂停状态
+        isPaused = false;
+        pausedObjectKey = null;
+        pausedDestinationPath = null;
+        pausedCallback = null;
+        downloadedSize = 0;
+        totalSize = 0;
+    }
+
+    /**
+     * 暂停当前下载任务
+     * 注意：阿里云OSS SDK不直接支持暂停和恢复，这里模拟实现
+     */
+    public void pauseDownload() {
+        Log.d(TAG, "Pausing download task");
+        if (currentDownloadTask != null && !currentDownloadTask.isCompleted()) {
+            // 设置暂停标志
+            isPaused = true;
+            
+            // 取消当前下载任务，但保留任务参数，以便之后恢复
+            currentDownloadTask.cancel();
+            Log.d(TAG, "Download paused");
+        } else {
+            Log.d(TAG, "No active download task to pause");
+        }
+    }
+
+    /**
+     * 恢复下载任务
+     * 注意：阿里云OSS SDK不直接支持暂停和恢复，这里通过重新开始下载来模拟实现
+     * 
+     * @param objectKey OSS对象键
+     * @param destinationPath 目标文件路径
+     */
+    public void resumeDownload(String objectKey, String destinationPath) {
+        Log.d(TAG, "Resuming download: " + objectKey);
+        
+        // 保存新的下载参数
+        pausedObjectKey = objectKey;
+        pausedDestinationPath = destinationPath;
+        
+        // 重置暂停状态
+        isPaused = false;
+        
+        // 如果尚未启动下载或下载已完成
+        if (currentDownloadTask == null || currentDownloadTask.isCompleted()) {
+            currentDownloadTask = null;
+        }
+        
+        // 重新开始下载
+        if (pausedCallback != null) {
+            downloadUpdate(objectKey, destinationPath, pausedCallback);
+            Log.d(TAG, "Download resumed with original callback");
+        } else {
+            // 如果没有保存回调，创建一个新的回调（这种情况不应该发生）
+            downloadUpdate(objectKey, destinationPath, new DownloadCallback() {
+                @Override
+                public void onProgress(long currentSize, long totalSize) {
+                    Log.d(TAG, "Resume download progress: " + currentSize + "/" + totalSize);
+                }
+
+                @Override
+                public void onSuccess() {
+                    Log.d(TAG, "Resume download completed successfully");
+                }
+
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e(TAG, "Resume download failed", e);
+                }
+            });
+            Log.d(TAG, "Download resumed with new callback (abnormal)");
         }
     }
 

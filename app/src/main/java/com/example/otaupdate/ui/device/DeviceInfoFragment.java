@@ -51,8 +51,8 @@ public class DeviceInfoFragment extends Fragment {
     private TextView tvCpuModel;
     private TextView tvResolution;
     private TextView tvMcuVersion;
-    private TextView tvSystemBuildDate;
-    private TextView tvAppBuildDate;
+    private TextView tvSystemVersion;
+    private TextView tvSystemAppVersion;
     private TextView tvAppVersionCard;
     private Button btnCheckAppVersion;
     
@@ -66,8 +66,8 @@ public class DeviceInfoFragment extends Fragment {
         tvCpuModel = view.findViewById(R.id.tvCpuModel);
         tvResolution = view.findViewById(R.id.tvResolution);
         tvMcuVersion = view.findViewById(R.id.tvMcuVersion);
-        tvSystemBuildDate = view.findViewById(R.id.tvSystemBuildDate);
-        tvAppBuildDate = view.findViewById(R.id.tvAppBuildDate);
+        tvSystemVersion = view.findViewById(R.id.tvSystemBuildDate);
+        tvSystemAppVersion = view.findViewById(R.id.tvAppBuildDate);
         tvAppVersionCard = view.findViewById(R.id.tvAppVersionCard);
         btnCheckAppVersion = view.findViewById(R.id.btnCheckAppVersion);
         
@@ -93,8 +93,8 @@ public class DeviceInfoFragment extends Fragment {
             String deviceCpuModel = DeviceInfoUtils.getCpuModel();
             String deviceResolution = DeviceInfoUtils.getScreenResolution(requireContext());
             String deviceMcuVersion = DeviceInfoUtils.getMcuVersion();
-            String deviceSystemBuildDate = DeviceInfoUtils.getSystemBuildDate();
-            String appBuildTime = DeviceInfoUtils.getAppBuildTime();
+            String deviceSystemVersion = DeviceInfoUtils.getSystemBuildDate();
+            String systemAppVersion = DeviceInfoUtils.getAppBuildTime();
             String appVersion = DeviceInfoUtils.getAppVersion(requireContext());
             
             mainThreadHandler.post(() -> {
@@ -102,8 +102,21 @@ public class DeviceInfoFragment extends Fragment {
                     tvCpuModel.setText(getString(R.string.cpu_model_label, deviceCpuModel));
                     tvResolution.setText(getString(R.string.resolution_label, deviceResolution));
                     tvMcuVersion.setText(getString(R.string.mcu_version_label, deviceMcuVersion));
-                    tvSystemBuildDate.setText(getString(R.string.system_build_date_label, deviceSystemBuildDate));
-                    tvAppBuildDate.setText(getString(R.string.app_build_date_label, appBuildTime));
+                    
+                    // 修改显示方式，只显示日期部分
+                    String systemVersionDate = deviceSystemVersion;
+                    if (systemVersionDate != null && systemVersionDate.contains(" ")) {
+                        systemVersionDate = systemVersionDate.split(" ")[0]; // 只保留日期部分
+                    }
+                    tvSystemVersion.setText(getString(R.string.system_version_label, systemVersionDate));
+                    
+                    // 修改显示方式，只显示日期部分
+                    String appVersionDate = systemAppVersion;
+                    if (appVersionDate != null && appVersionDate.contains(" ")) {
+                        appVersionDate = appVersionDate.split(" ")[0]; // 只保留日期部分
+                    }
+                    tvSystemAppVersion.setText(getString(R.string.system_app_version_label, appVersionDate));
+                    
                     tvAppVersionCard.setText(getString(R.string.app_version_label, appVersion));
                 }
             });
@@ -117,6 +130,7 @@ public class DeviceInfoFragment extends Fragment {
         backgroundExecutor.execute(() -> {
             try {
                 // 从GitHub获取最新版本信息
+                Log.d(TAG, "正在检查更新，API URL: " + GITHUB_REPO_URL);
                 URL url = new URL(GITHUB_REPO_URL);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
@@ -124,6 +138,8 @@ public class DeviceInfoFragment extends Fragment {
                 
                 // 检查响应码
                 int responseCode = connection.getResponseCode();
+                Log.d(TAG, "API响应码: " + responseCode);
+                
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     // 读取响应数据
                     BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
@@ -134,8 +150,11 @@ public class DeviceInfoFragment extends Fragment {
                     }
                     reader.close();
                     
+                    String responseData = response.toString();
+                    Log.d(TAG, "API响应数据: " + responseData.substring(0, Math.min(500, responseData.length())) + "...");
+                    
                     // 解析JSON响应
-                    JSONObject jsonObject = new JSONObject(response.toString());
+                    JSONObject jsonObject = new JSONObject(responseData);
                     String tagName = jsonObject.getString("tag_name");
                     String latestVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
                     String currentVersion = BuildConfig.VERSION_NAME;
@@ -149,8 +168,10 @@ public class DeviceInfoFragment extends Fragment {
                     for (int i = 0; i < assets.length(); i++) {
                         JSONObject asset = assets.getJSONObject(i);
                         String fileName = asset.getString("name");
+                        Log.d(TAG, "发现资源文件: " + fileName);
                         if (fileName.endsWith(".apk")) {
                             downloadUrl = asset.getString("browser_download_url");
+                            Log.d(TAG, "找到APK下载链接: " + downloadUrl);
                             break;
                         }
                     }
@@ -164,15 +185,20 @@ public class DeviceInfoFragment extends Fragment {
                             
                             // 比较版本号，判断是否需要更新
                             if (isNewerVersion(latestVersion, currentVersion) && finalDownloadUrl != null) {
+                                Log.d(TAG, "发现新版本，需要更新");
                                 showUpdateDialog(latestVersion, finalDownloadUrl, releaseNotes);
-                            } else if (finalDownloadUrl == null) {
-                                Toast.makeText(requireContext(), R.string.no_update_available, Toast.LENGTH_SHORT).show();
+                            } else if (finalDownloadUrl != null) {
+                                // 版本相同但有下载链接，询问是否需要强制更新
+                                Log.d(TAG, "版本相同，询问是否强制更新");
+                                showForceUpdateDialog(latestVersion, finalDownloadUrl, releaseNotes);
                             } else {
-                                Toast.makeText(requireContext(), R.string.app_up_to_date, Toast.LENGTH_SHORT).show();
+                                Log.d(TAG, "未找到APK下载链接");
+                                Toast.makeText(requireContext(), R.string.no_update_available, Toast.LENGTH_SHORT).show();
                             }
                         }
                     });
                 } else if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
+                    Log.e(TAG, "GitHub API返回404，仓库或release不存在");
                     mainThreadHandler.post(() -> {
                         if (isAdded()) {
                             tvAppVersionCard.setText(getString(R.string.app_version_label, BuildConfig.VERSION_NAME));
@@ -197,25 +223,36 @@ public class DeviceInfoFragment extends Fragment {
     }
     
     private boolean isNewerVersion(String remoteVersion, String localVersion) {
+        Log.d(TAG, "比较版本号: 远程=" + remoteVersion + ", 本地=" + localVersion);
         try {
             // 版本号格式: x.y.z
             String[] remoteParts = remoteVersion.split("\\.");
             String[] localParts = localVersion.split("\\.");
+            
+            Log.d(TAG, "远程版本号部分: " + String.join(".", remoteParts));
+            Log.d(TAG, "本地版本号部分: " + String.join(".", localParts));
             
             // 比较主版本号、次版本号和修订号
             for (int i = 0; i < Math.min(remoteParts.length, localParts.length); i++) {
                 int remotePart = Integer.parseInt(remoteParts[i]);
                 int localPart = Integer.parseInt(localParts[i]);
                 
+                Log.d(TAG, "比较第" + (i+1) + "部分: 远程=" + remotePart + ", 本地=" + localPart);
+                
                 if (remotePart > localPart) {
+                    Log.d(TAG, "远程版本较新，需要更新");
                     return true;
                 } else if (remotePart < localPart) {
+                    Log.d(TAG, "本地版本较新，无需更新");
                     return false;
                 }
             }
             
             // 如果前面的版本号都相同，但远程版本有更多的部分（例如1.0与1.0.1）
-            return remoteParts.length > localParts.length;
+            boolean result = remoteParts.length > localParts.length;
+            Log.d(TAG, "版本号主要部分相同，比较版本号长度: 远程长度=" + remoteParts.length + ", 本地长度=" + localParts.length);
+            Log.d(TAG, "最终结果: " + (result ? "需要更新" : "无需更新"));
+            return result;
         } catch (NumberFormatException e) {
             Log.e(TAG, "版本号比较失败", e);
             return false;
@@ -230,6 +267,17 @@ public class DeviceInfoFragment extends Fragment {
                 downloadAndInstallApk(downloadUrl, version);
             })
             .setNegativeButton(R.string.later, null)
+            .show();
+    }
+    
+    private void showForceUpdateDialog(String version, String downloadUrl, String releaseNotes) {
+        new AlertDialog.Builder(requireContext())
+            .setTitle(R.string.force_update_title)
+            .setMessage(getString(R.string.force_update_message) + "\n\n" + getString(R.string.update_message, releaseNotes))
+            .setPositiveButton(R.string.force_update_confirm, (dialog, which) -> {
+                downloadAndInstallApk(downloadUrl, version);
+            })
+            .setNegativeButton(R.string.force_update_cancel, null)
             .show();
     }
     
@@ -251,13 +299,23 @@ public class DeviceInfoFragment extends Fragment {
                     downloadDir.mkdirs();
                 }
                 
+                // 从URL中获取文件名
+                String fileName = downloadUrl.substring(downloadUrl.lastIndexOf('/') + 1);
+                // 如果文件名为空，使用默认名称
+                if (fileName.isEmpty()) {
+                    fileName = "OTAUpdate-" + version + ".apk";
+                }
+                Log.d(TAG, "下载文件名: " + fileName);
+                
                 // 下载APK文件
-                File outputFile = new File(downloadDir, "OTAUpdate-" + version + ".apk");
+                File outputFile = new File(downloadDir, fileName);
                 URL url = new URL(downloadUrl);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.connect();
                 
                 int fileLength = connection.getContentLength();
+                Log.d(TAG, "文件大小: " + fileLength + " 字节");
+                
                 InputStream input = new BufferedInputStream(connection.getInputStream());
                 OutputStream output = new FileOutputStream(outputFile);
                 
@@ -276,6 +334,8 @@ public class DeviceInfoFragment extends Fragment {
                 output.flush();
                 output.close();
                 input.close();
+                
+                Log.d(TAG, "下载完成，文件保存在: " + outputFile.getAbsolutePath());
                 
                 mainThreadHandler.post(() -> {
                     progressDialog.dismiss();

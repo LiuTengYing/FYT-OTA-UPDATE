@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,6 +18,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.example.otaupdate.DeviceInfoUtils;
+import com.example.otaupdate.DownloadProgressManager;
 import com.example.otaupdate.R;
 import com.example.otaupdate.UpdateInfo;
 import com.example.otaupdate.OssManager;
@@ -30,13 +32,9 @@ public class SystemUpdateFragment extends Fragment {
 
     private TextView tvCurrentVersion;
     private TextView tvLatestVersion;
-    private TextView tvProgressStatus;
     private Button btnCheckUpdate;
     private Button btnDownloadUpdate;
-    private Button btnCancelDownload;
-    private RelativeLayout progressContainer;
-    private CircularProgressIndicator circularProgress;
-    private ProgressBar pbSystemUpdate;
+    private View progressContainer;
     private TextView tvUpdateStatus;
     
     private ExecutorService backgroundExecutor;
@@ -54,6 +52,9 @@ public class SystemUpdateFragment extends Fragment {
     private static boolean isSystemDownloading = false;
     private static int systemDownloadProgress = 0;
     private static String systemDownloadStatus = "";
+    
+    // 下载进度管理器
+    private DownloadProgressManager downloadProgressManager;
 
     @Nullable
     @Override
@@ -62,14 +63,10 @@ public class SystemUpdateFragment extends Fragment {
         
         tvCurrentVersion = view.findViewById(R.id.tvCurrentVersion);
         tvLatestVersion = view.findViewById(R.id.tvLatestVersion);
-        tvProgressStatus = view.findViewById(R.id.tvProgressStatus);
+        progressContainer = view.findViewById(R.id.progressContainer);
+        tvUpdateStatus = view.findViewById(R.id.tvUpdateStatus);
         btnCheckUpdate = view.findViewById(R.id.btnCheckUpdate);
         btnDownloadUpdate = view.findViewById(R.id.btnDownloadUpdate);
-        btnCancelDownload = view.findViewById(R.id.btnCancelDownload);
-        progressContainer = view.findViewById(R.id.progressContainer);
-        circularProgress = view.findViewById(R.id.circularProgress);
-        pbSystemUpdate = view.findViewById(R.id.pbSystemUpdate);
-        tvUpdateStatus = view.findViewById(R.id.tvUpdateStatus);
         
         backgroundExecutor = Executors.newSingleThreadExecutor();
         mainThreadHandler = new Handler(Looper.getMainLooper());
@@ -102,9 +99,8 @@ public class SystemUpdateFragment extends Fragment {
             downloadUpdate();
         });
         
-        btnCancelDownload.setOnClickListener(v -> {
-            showCancelDownloadDialog();
-        });
+        // 初始化下载进度管理器
+        initDownloadProgressManager(view);
         
         fetchCurrentSystemVersion();
         
@@ -112,12 +108,20 @@ public class SystemUpdateFragment extends Fragment {
         if (isSystemDownloading) {
             btnCheckUpdate.setEnabled(false);
             btnDownloadUpdate.setEnabled(false);
-            btnCancelDownload.setVisibility(View.VISIBLE);
-            showProgress(systemDownloadStatus, systemDownloadProgress);
+            
+            // 使用下载进度管理器显示进度
+            if (downloadProgressManager != null) {
+                downloadProgressManager.showProgress();
+                downloadProgressManager.updateProgress(
+                    systemDownloadProgress * 1024L, // 模拟字节数
+                    100 * 1024L,  // 模拟总字节数
+                    systemDownloadStatus
+                );
+            }
         } else {
-            circularProgress.setVisibility(View.GONE);
-            pbSystemUpdate.setVisibility(View.GONE);
-            btnCancelDownload.setVisibility(View.GONE);
+            if (progressContainer != null) {
+                progressContainer.setVisibility(View.GONE);
+            }
         }
         
         btnDownloadUpdate.setAlpha(canDownload ? 1.0f : 0.3f);
@@ -130,12 +134,19 @@ public class SystemUpdateFragment extends Fragment {
         if (backgroundExecutor != null && !backgroundExecutor.isShutdown()) {
             backgroundExecutor.shutdown();
         }
+        // 清理下载进度管理器的资源
+        if (downloadProgressManager != null) {
+            downloadProgressManager.hideProgress();
+        }
     }
     
     private void fetchCurrentSystemVersion() {
         backgroundExecutor.execute(() -> {
+            // 使用标准化的系统版本号
             String systemBuildDate = DeviceInfoUtils.getSystemBuildDate();
-            localSystemVersion = systemBuildDate;
+            String standardSystemVersion = DeviceInfoUtils.getStandardSystemVersion();
+            localSystemVersion = standardSystemVersion; // 使用标准化版本号
+            
             mainThreadHandler.post(() -> {
                 if (isAdded()) {
                     String versionToShow = latestOssVersion != null ? latestOssVersion : systemBuildDate;
@@ -163,16 +174,40 @@ public class SystemUpdateFragment extends Fragment {
                         if (isAdded()) {
                             tvCurrentVersion.setText(getString(R.string.current_version_label, latestOssVersion));
                             tvLatestVersion.setText(getString(R.string.latest_version_label, result.getVersion()));
-                            String localDate = localSystemVersion;
-                            String ossDate = latestOssVersion;
-                            if (localDate != null && ossDate != null && localDate.replaceAll("[^0-9]", "").contains(ossDate)) {
-                                showStatus(getString(R.string.status_up_to_date), false);
-                                canDownload = false;
-                                btnDownloadUpdate.setAlpha(0.3f);
-                            } else {
-                                showStatus(getString(R.string.status_update_available), false);
-                                canDownload = true;
-                                btnDownloadUpdate.setAlpha(1.0f);
+                            
+                            // 获取本地标准化版本和OSS标准化版本
+                            String localStandardVersion = localSystemVersion; // 已经是标准化版本
+                            String ossStandardVersion = DeviceInfoUtils.formatDateToStandardVersion(latestOssVersion);
+                            
+                            // 直接比较标准化的版本号
+                            try {
+                                long localVersionNum = Long.parseLong(localStandardVersion);
+                                long ossVersionNum = Long.parseLong(ossStandardVersion);
+                                
+                                Log.d("SystemUpdateFragment", "比较版本: 本地=" + localVersionNum + "(" + DeviceInfoUtils.getSystemBuildDate() + "), " +
+                                      "OSS=" + ossVersionNum + "(" + latestOssVersion + ")");
+                                
+                                if (localVersionNum >= ossVersionNum) {
+                                    showStatus(getString(R.string.status_up_to_date), false);
+                                    canDownload = false;
+                                    btnDownloadUpdate.setAlpha(0.3f);
+                                } else {
+                                    showStatus(getString(R.string.status_update_available), false);
+                                    canDownload = true;
+                                    btnDownloadUpdate.setAlpha(1.0f);
+                                }
+                            } catch (NumberFormatException e) {
+                                // 极少数情况下可能会抛出异常，这里提供简单的回退策略
+                                Log.e("SystemUpdateFragment", "版本比较异常", e);
+                                if (localStandardVersion.equals(ossStandardVersion)) {
+                                    showStatus(getString(R.string.status_up_to_date), false);
+                                    canDownload = false;
+                                    btnDownloadUpdate.setAlpha(0.3f);
+                                } else {
+                                    showStatus(getString(R.string.status_update_available), false);
+                                    canDownload = true;
+                                    btnDownloadUpdate.setAlpha(1.0f);
+                                }
                             }
                         }
                     });
@@ -214,17 +249,24 @@ public class SystemUpdateFragment extends Fragment {
         
         btnCheckUpdate.setEnabled(false);
         btnDownloadUpdate.setEnabled(false);
-        btnCancelDownload.setVisibility(View.VISIBLE);
-        progressContainer.setVisibility(View.VISIBLE);
+        
+        // 显示下载进度UI
+        if (downloadProgressManager != null) {
+            downloadProgressManager.reset();
+            downloadProgressManager.showProgress();
+        }
         
         File downloadDir = new File(requireContext().getExternalFilesDir(null), "downloads");
         if (!downloadDir.exists()) {
             downloadDir.mkdirs();
         }
         
-        downloadFile = new File(downloadDir, "system_update.zip");
-        OssManager ossManager = new OssManager(requireContext());
+        // 设置下载文件路径
+        String fileName = currentSystemUpdateInfo.getKey().substring(currentSystemUpdateInfo.getKey().lastIndexOf('/') + 1);
+        downloadFile = new File(downloadDir, fileName);
         
+        // 创建OssManager实例并开始下载
+        OssManager ossManager = new OssManager(requireContext());
         ossManager.downloadUpdate(currentSystemUpdateInfo.getKey(), downloadFile.getAbsolutePath(), 
             new OssManager.DownloadCallback() {
                 @Override
@@ -232,9 +274,17 @@ public class SystemUpdateFragment extends Fragment {
                     int progress = totalSize > 0 ? (int) ((currentSize * 100) / totalSize) : 0;
                     systemDownloadProgress = progress;
                     systemDownloadStatus = getString(R.string.status_downloading, progress);
+                    
                     mainThreadHandler.post(() -> {
                         if (isAdded()) {
-                            showProgress(systemDownloadStatus, progress);
+                            // 使用下载进度管理器更新UI
+                            if (downloadProgressManager != null) {
+                                downloadProgressManager.updateProgress(
+                                    currentSize, 
+                                    totalSize, 
+                                    getString(R.string.downloading_update, progress + "%")
+                                );
+                            }
                         }
                     });
                 }
@@ -243,27 +293,17 @@ public class SystemUpdateFragment extends Fragment {
                 public void onSuccess() {
                     com.example.otaupdate.MainActivity.setDownloading(false);
                     isSystemDownloading = false;
+                    
                     mainThreadHandler.post(() -> {
                         if (isAdded()) {
-                            showProgress(getString(R.string.status_download_complete), 100);
-                            showProgress(getString(R.string.status_extracting), -1);
-                            btnCancelDownload.setVisibility(View.GONE);
+                            // 隐藏下载进度UI
+                            if (downloadProgressManager != null) {
+                                downloadProgressManager.hideProgress();
+                            }
                             
-                            // 延迟一段时间后显示移动文件状态
-                            mainThreadHandler.postDelayed(() -> {
-                                if (isAdded()) {
-                                    showProgress(getString(R.string.status_moving_files), -1);
-                                    
-                                    // 再延迟一段时间后显示完成状态并弹出重启对话框
-                                    mainThreadHandler.postDelayed(() -> {
-                                        if (isAdded()) {
-                                            progressContainer.setVisibility(View.GONE);
-                                            showStatus(getString(R.string.status_update_ready), false);
-                                            showRebootDialog();
-                                        }
-                                    }, 2000);
-                                }
-                            }, 2000);
+                            showStatus(getString(R.string.status_download_complete), false);
+                            btnCheckUpdate.setEnabled(true);
+                            showRebootDialog();
                         }
                     });
                 }
@@ -272,10 +312,14 @@ public class SystemUpdateFragment extends Fragment {
                 public void onFailure(@NonNull Exception e) {
                     com.example.otaupdate.MainActivity.setDownloading(false);
                     isSystemDownloading = false;
+                    
                     mainThreadHandler.post(() -> {
                         if (isAdded()) {
-                            progressContainer.setVisibility(View.GONE);
-                            btnCancelDownload.setVisibility(View.GONE);
+                            // 隐藏下载进度UI
+                            if (downloadProgressManager != null) {
+                                downloadProgressManager.hideProgress();
+                            }
+                            
                             showStatus(getString(R.string.status_error_download, e.getMessage()), true);
                             btnCheckUpdate.setEnabled(true);
                             btnDownloadUpdate.setEnabled(true);
@@ -285,69 +329,14 @@ public class SystemUpdateFragment extends Fragment {
             });
     }
     
-    private void showProgress(String message, int progress) {
-        progressContainer.setVisibility(View.VISIBLE);
-        tvProgressStatus.setVisibility(View.VISIBLE);
-        tvProgressStatus.setText(message);
-        if (progress >= 0) {
-            circularProgress.setVisibility(View.VISIBLE);
-            pbSystemUpdate.setVisibility(View.VISIBLE);
-            circularProgress.setProgress(progress);
-            pbSystemUpdate.setProgress(progress);
-            pbSystemUpdate.setIndeterminate(false);
-            circularProgress.setIndeterminate(false);
-        } else {
-            circularProgress.setVisibility(View.VISIBLE);
-            pbSystemUpdate.setVisibility(View.VISIBLE);
-            pbSystemUpdate.setIndeterminate(true);
-            circularProgress.setIndeterminate(true);
-        }
-        tvUpdateStatus.setVisibility(View.GONE);
-    }
-
     private void showStatus(String message, boolean isError) {
-        tvUpdateStatus.setVisibility(View.VISIBLE);
-        tvUpdateStatus.setText(message);
-        tvUpdateStatus.setTextColor(getResources().getColor(
-            isError ? android.R.color.holo_red_light : android.R.color.white));
-        progressContainer.setVisibility(View.GONE);
-        circularProgress.setVisibility(View.GONE);
-        pbSystemUpdate.setVisibility(View.GONE);
-    }
-
-    private void showCancelDownloadDialog() {
-        new AlertDialog.Builder(requireContext())
-            .setTitle(R.string.confirm_cancel_download_title)
-            .setMessage(R.string.confirm_cancel_download_message)
-            .setPositiveButton(R.string.ok, (dialog, which) -> {
-                cancelDownload();
-            })
-            .setNegativeButton(R.string.cancel, null)
-            .show();
-    }
-    
-    private void cancelDownload() {
-        // 取消下载任务
-        OssManager ossManager = new OssManager(requireContext());
-        ossManager.cancelDownload();
-        
-        // 删除已下载的文件
-        if (downloadFile != null && downloadFile.exists()) {
-            downloadFile.delete();
+        if (tvUpdateStatus != null) {
+            tvUpdateStatus.setVisibility(View.VISIBLE);
+            tvUpdateStatus.setText(message);
+            tvUpdateStatus.setTextColor(isError ? 
+                    requireContext().getColor(android.R.color.holo_red_light) : 
+                    requireContext().getColor(android.R.color.white));
         }
-        
-        // 重置状态
-        com.example.otaupdate.MainActivity.setDownloading(false);
-        isSystemDownloading = false;
-        systemDownloadProgress = 0;
-        
-        // 更新UI
-        btnCheckUpdate.setEnabled(true);
-        btnDownloadUpdate.setEnabled(true);
-        btnCancelDownload.setVisibility(View.GONE);
-        progressContainer.setVisibility(View.GONE);
-        
-        showStatus(getString(R.string.download_cancelled), false);
     }
 
     private void showRebootDialog() {
@@ -377,5 +366,76 @@ public class SystemUpdateFragment extends Fragment {
     
     public static String getDownloadStatus() {
         return systemDownloadStatus;
+    }
+
+    /**
+     * 初始化下载进度管理器
+     */
+    private void initDownloadProgressManager(View view) {
+        downloadProgressManager = new DownloadProgressManager(requireContext(), view);
+        downloadProgressManager.setCallback(new DownloadProgressManager.DownloadControlCallback() {
+            @Override
+            public void onPauseResumeClicked(boolean isPaused) {
+                // 处理暂停/继续下载
+                if (isPaused) {
+                    // 暂停下载逻辑
+                    OssManager ossManager = new OssManager(requireContext());
+                    ossManager.pauseDownload();
+                } else {
+                    // 继续下载逻辑
+                    if (currentSystemUpdateInfo != null && downloadFile != null) {
+                        OssManager ossManager = new OssManager(requireContext());
+                        ossManager.resumeDownload(currentSystemUpdateInfo.getKey(), downloadFile.getAbsolutePath());
+                    }
+                }
+            }
+            
+            @Override
+            public void onCancelClicked() {
+                // 处理取消下载
+                showCancelDownloadDialog();
+            }
+        });
+    }
+    
+    /**
+     * 显示取消下载确认对话框
+     */
+    private void showCancelDownloadDialog() {
+        new AlertDialog.Builder(requireContext())
+            .setTitle(R.string.confirm_cancel_title)
+            .setMessage(R.string.confirm_cancel_message)
+            .setPositiveButton(R.string.btn_confirm, (dialog, which) -> {
+                cancelDownload();
+            })
+            .setNegativeButton(R.string.btn_no, null)
+            .show();
+    }
+    
+    /**
+     * 取消下载操作
+     */
+    private void cancelDownload() {
+        if (isSystemDownloading) {
+            OssManager ossManager = new OssManager(requireContext());
+            ossManager.cancelDownload();
+            
+            isSystemDownloading = false;
+            com.example.otaupdate.MainActivity.setDownloading(false);
+            
+            // 隐藏下载进度UI
+            if (downloadProgressManager != null) {
+                downloadProgressManager.hideProgress();
+            }
+            
+            btnCheckUpdate.setEnabled(true);
+            btnDownloadUpdate.setEnabled(true);
+            showStatus(getString(R.string.status_download_cancelled), false);
+            
+            // 删除临时下载文件
+            if (downloadFile != null && downloadFile.exists()) {
+                downloadFile.delete();
+            }
+        }
     }
 }

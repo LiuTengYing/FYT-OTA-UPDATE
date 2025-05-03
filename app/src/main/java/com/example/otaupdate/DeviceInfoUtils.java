@@ -27,6 +27,10 @@ import java.util.regex.Pattern;
 public class DeviceInfoUtils {
     private static final String TAG = "DeviceInfoUtils";
     private static final String UNKNOWN = "Unknown";
+    
+    // 缓存标准化后的版本号
+    private static String cachedStandardSystemVersion = null;
+    private static String cachedStandardAppVersion = null;
 
     private DeviceInfoUtils() {
     }
@@ -444,11 +448,55 @@ public class DeviceInfoUtils {
             if (isValidValue(buildDate)) {
                 // 尝试解析并格式化日期
                 try {
-                    SimpleDateFormat inputFormat = new SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.US);
-                    Date date = inputFormat.parse(buildDate);
+                    // 尝试多种可能的日期格式
+                    String[] possibleFormats = {
+                        "EEE MMM dd HH:mm:ss z yyyy", // 标准格式
+                        "yyyy-MM-dd HH:mm:ss", // 简单格式 
+                        "yyyy-MM-dd HH:mm:ss EEEE" // 带星期的格式(如2025-03-06 12:33:44 Thursday)
+                    };
+                    
+                    Date date = null;
+                    for (String format : possibleFormats) {
+                        try {
+                            SimpleDateFormat inputFormat = new SimpleDateFormat(format, Locale.US);
+                            date = inputFormat.parse(buildDate);
+                            if (date != null) {
+                                break; // 成功解析
+                            }
+                        } catch (Exception e) {
+                            // 尝试下一种格式
+                            Log.d(TAG, "尝试格式 " + format + " 解析失败，继续尝试下一种格式");
+                        }
+                    }
+                    
+                    // 如果所有格式都失败，尝试提取日期部分
+                    if (date == null && buildDate.contains("-")) {
+                        // 尝试提取yyyy-MM-dd部分
+                        String[] parts = buildDate.split(" ");
+                        if (parts.length > 0) {
+                            // 第一部分可能是日期
+                            try {
+                                SimpleDateFormat simpleFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+                                date = simpleFormat.parse(parts[0]);
+                            } catch (Exception e) {
+                                Log.d(TAG, "提取日期部分失败: " + parts[0]);
+                            }
+                        }
+                    }
+                    
                     if (date != null) {
                         SimpleDateFormat outputFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
                         buildDate = outputFormat.format(date);
+                    } else {
+                        // 如果仍然无法解析，手动提取年月日
+                        Log.d(TAG, "所有日期格式解析失败，尝试手动提取年月日");
+                        // 使用正则表达式提取年月日
+                        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d{4})-(\\d{2})-(\\d{2})");
+                        java.util.regex.Matcher matcher = pattern.matcher(buildDate);
+                        if (matcher.find()) {
+                            buildDate = matcher.group(0); // 提取匹配的yyyy-MM-dd部分
+                            Log.d(TAG, "手动提取日期成功: " + buildDate);
+                        }
                     }
                 } catch (Exception e) {
                     // 如果解析失败，保留原始格式
@@ -514,8 +562,6 @@ public class DeviceInfoUtils {
             }
         }
     }
-
-
 
     private static String getSystemProperty(String propName) {
         Process proc = null;
@@ -595,4 +641,81 @@ public class DeviceInfoUtils {
     private static boolean isValid(String value) {
         return value != null && !value.isEmpty();
     } // Simplified helper
+
+    /**
+     * 将日期格式化为标准8位数字格式YYYYMMDD
+     * 支持多种输入格式，如"2025-03-06"或"2025-03-06 12:33:44 Thursday"
+     * @param date 原始日期字符串
+     * @return 标准化的8位数字格式YYYYMMDD，如20250306
+     */
+    @NonNull
+    public static String formatDateToStandardVersion(String date) {
+        if (!isValidValue(date)) {
+            return "00000000"; // 返回默认值
+        }
+        
+        String result;
+        
+        // 如果是标准日期格式（包含"-"）
+        if (date.contains("-")) {
+            try {
+                String[] parts = date.split("\\s+")[0].split("-");
+                if (parts.length >= 3) {
+                    // 按照YYYYMMDD格式组合
+                    result = parts[0] + 
+                           (parts[1].length() == 1 ? "0" + parts[1] : parts[1]) + 
+                           (parts[2].length() == 1 ? "0" + parts[2] : parts[2]);
+                    Log.d(TAG, "从日期格式提取: " + date + " -> " + result);
+                    return result;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "解析日期格式失败: " + date, e);
+                // 解析失败，继续使用下面的方法
+            }
+        }
+        
+        // 非标准格式，直接提取数字
+        result = date.replaceAll("[^0-9]", "");
+        if (result.length() > 8) {
+            result = result.substring(0, 8);
+        } else if (result.length() < 8) {
+            // 如果长度不足8位，补0
+            StringBuilder sb = new StringBuilder(result);
+            while (sb.length() < 8) {
+                sb.append("0");
+            }
+            result = sb.toString();
+        }
+        
+        Log.d(TAG, "标准化日期: " + date + " -> " + result);
+        return result;
+    }
+    
+    /**
+     * 获取标准化的系统版本号（8位数字格式YYYYMMDD）
+     * @return 标准化的系统版本号
+     */
+    @NonNull
+    public static String getStandardSystemVersion() {
+        if (cachedStandardSystemVersion == null) {
+            String systemDate = getSystemBuildDate();
+            cachedStandardSystemVersion = formatDateToStandardVersion(systemDate);
+            Log.d(TAG, "初始化标准系统版本: " + systemDate + " -> " + cachedStandardSystemVersion);
+        }
+        return cachedStandardSystemVersion;
+    }
+    
+    /**
+     * 获取标准化的应用版本号（8位数字格式YYYYMMDD）
+     * @return 标准化的应用版本号
+     */
+    @NonNull
+    public static String getStandardAppVersion() {
+        if (cachedStandardAppVersion == null) {
+            String appDate = getAppBuildTime();
+            cachedStandardAppVersion = formatDateToStandardVersion(appDate);
+            Log.d(TAG, "初始化标准应用版本: " + appDate + " -> " + cachedStandardAppVersion);
+        }
+        return cachedStandardAppVersion;
+    }
 }

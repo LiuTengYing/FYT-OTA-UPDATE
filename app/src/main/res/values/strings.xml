@@ -4,13 +4,13 @@
     <string name="cpu_model_label">CPU Model: %s</string>
     <string name="resolution_label">Resolution: %s</string>
     <string name="mcu_version_label">MCU Version: %s</string>
-    <string name="system_build_date_label">System Build Date: %s</string>
-    <string name="app_build_date_label">App Build Date: %s</string>
+    <string name="system_version_label">System Version: %s</string>
+    <string name="system_app_version_label">System App Version: %s</string>
     <string name="cpu_model_label_placeholder">CPU Model: Fetching...</string>
     <string name="resolution_label_placeholder">Resolution: Fetching...</string>
     <string name="mcu_version_label_placeholder">MCU Version: Fetching...</string>
-    <string name="system_build_date_label_placeholder">System Build Date: Fetching...</string>
-    <string name="app_build_date_label_placeholder">App Build Date: Fetching...</string>
+    <string name="system_version_label_placeholder">System Version: Fetching...</string>
+    <string name="system_app_version_label_placeholder">System App Version: Fetching...</string>
     <string name="unknown">Unknown</string>
     <string name="fetching">Fetching...</string>
 
@@ -103,6 +103,7 @@ Please enable "Allow management of all files" permission in system settings.</st
     <string name="download_in_progress_warning">A download is in progress. Please wait until it completes before starting another.</string>
 
     <string name="status_up_to_date">Current version is up to date. No update needed.</string>
+    <string name="status_version_unknown">Version information unavailable</string>
 
     <string name="force_update_title">Force Update</string>
     <string name="force_update_message">Current version is up to date. Do you want to force update?</string>
@@ -128,6 +129,21 @@ Please enable "Allow management of all files" permission in system settings.</st
     <string name="app_up_to_date">Already up to date</string>
     <string name="no_update_available">No update available</string>
     <string name="check_update_failed">Check update failed: %s</string>
-
+    <string name="version_info_title">Version Information</string>
+    <string name="version_update_notes">Version 1.1.0 Changes:\n- Improved System APP update logic\n- Added CPU model and resolution matching for System APP updates\n- Enhanced version comparison\n- Bug fixes and performance improvements</string>
+    
+    <!-- 下载进度相关 -->
+    <string name="download_speed">%1$s/s</string>
+    <string name="download_remaining_time">Remaining: %1$s</string>
+    <string name="download_info_format">%1$s - %2$s</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
     <string name="later">Later</string>
+
+    <!-- 下载取消相关 -->
+    <string name="confirm_cancel_title">Cancel Download</string>
+    <string name="confirm_cancel_message">Are you sure you want to cancel the download?</string>
+    <string name="btn_confirm">Yes, Cancel</string>
+    <string name="btn_no">No</string>
+    <string name="status_download_cancelled">Download cancelled</string>
 </resources>

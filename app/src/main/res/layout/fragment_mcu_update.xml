@@ -40,50 +40,14 @@
             android:textColor="@android:color/white"
             android:textSize="16sp" />
 
-        <RelativeLayout
+        <include
             android:id="@+id/progressContainer"
+            layout="@layout/layout_download_progress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:visibility="gone"
-            tools:visibility="visible">
-
-            <com.google.android.material.progressindicator.CircularProgressIndicator
-                android:id="@+id/circularProgress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_centerVertical="true"
-                android:layout_marginEnd="16dp"
-                android:progress="0"
-                app:indicatorColor="@android:color/white"
-                app:indicatorSize="48dp"
-                app:trackColor="#4DFFFFFF" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_centerVertical="true"
-                android:layout_toEndOf="@id/circularProgress"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvProgressStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textColor="@android:color/white"
-                    android:textSize="14sp"
-                    tools:text="@string/status_downloading" />
-
-                <ProgressBar
-                    android:id="@+id/pbMcuUpdate"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:indeterminate="false" />
-
-            </LinearLayout>
-        </RelativeLayout>
+            tools:visibility="visible" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -109,16 +73,6 @@
                 android:enabled="true"
                 android:text="@string/download_update" />
         </LinearLayout>
-
-        <Button
-            android:id="@+id/btnCancelDownload"
-            style="@style/AppButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/cancel_download"
-            android:visibility="gone"
-            tools:visibility="visible" />
 
         <TextView
             android:id="@+id/tvMcuUpdateStatus"

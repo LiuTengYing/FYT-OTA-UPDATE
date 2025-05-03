@@ -9,18 +9,16 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.ProgressBar;
-import android.widget.RelativeLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.example.otaupdate.DeviceInfoUtils;
+import com.example.otaupdate.DownloadProgressManager;
 import com.example.otaupdate.R;
 import com.example.otaupdate.UpdateInfo;
 import com.example.otaupdate.OssManager;
-import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import java.io.File;
 import java.util.concurrent.ExecutorService;
@@ -29,14 +27,11 @@ import java.util.concurrent.Executors;
 public class McuUpdateFragment extends Fragment {
 
     private TextView tvCurrentMcu;
+    private TextView tvLatestMcuVersion;
     private TextView tvMcuUpdateStatus;
-    private TextView tvProgressStatus;
     private Button btnCheckMcuUpdate;
     private Button btnDownloadMcuUpdate;
-    private Button btnCancelDownload;
-    private ProgressBar pbMcuUpdate;
-    private CircularProgressIndicator circularProgress;
-    private RelativeLayout progressContainer;
+    private View progressContainer;
     
     private ExecutorService backgroundExecutor;
     private Handler mainThreadHandler;
@@ -47,19 +42,19 @@ public class McuUpdateFragment extends Fragment {
     private static boolean isMcuDownloading = false;
     private static int mcuDownloadProgress = 0;
     private static String mcuDownloadStatus = "";
+    
+    // 下载进度管理器
+    private DownloadProgressManager downloadProgressManager;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_mcu_update, container, false);
         
         tvCurrentMcu = view.findViewById(R.id.tvCurrentMcu);
+        tvLatestMcuVersion = view.findViewById(R.id.tvLatestMcuVersion);
         tvMcuUpdateStatus = view.findViewById(R.id.tvMcuUpdateStatus);
-        tvProgressStatus = view.findViewById(R.id.tvProgressStatus);
         btnCheckMcuUpdate = view.findViewById(R.id.btnCheckMcuUpdate);
         btnDownloadMcuUpdate = view.findViewById(R.id.btnDownloadMcuUpdate);
-        btnCancelDownload = view.findViewById(R.id.btnCancelDownload);
-        pbMcuUpdate = view.findViewById(R.id.pbMcuUpdate);
-        circularProgress = view.findViewById(R.id.circularProgress);
         progressContainer = view.findViewById(R.id.progressContainer);
         
         backgroundExecutor = Executors.newSingleThreadExecutor();
@@ -67,7 +62,9 @@ public class McuUpdateFragment extends Fragment {
         
         btnCheckMcuUpdate.setOnClickListener(v -> checkMcuUpdate());
         btnDownloadMcuUpdate.setOnClickListener(v -> downloadUpdate());
-        btnCancelDownload.setOnClickListener(v -> showCancelDownloadDialog());
+        
+        // 初始化下载进度管理器
+        initDownloadProgressManager(view);
         
         fetchCurrentMcuVersion();
         
@@ -75,12 +72,20 @@ public class McuUpdateFragment extends Fragment {
         if (isMcuDownloading) {
             btnCheckMcuUpdate.setEnabled(false);
             btnDownloadMcuUpdate.setEnabled(false);
-            btnCancelDownload.setVisibility(View.VISIBLE);
-            showProgress(mcuDownloadStatus, mcuDownloadProgress);
+            
+            // 使用下载进度管理器显示进度
+            if (downloadProgressManager != null) {
+                downloadProgressManager.showProgress();
+                downloadProgressManager.updateProgress(
+                    mcuDownloadProgress * 1024L, // 模拟字节数
+                    100 * 1024L, // 模拟总字节数
+                    mcuDownloadStatus
+                );
+            }
         } else {
-            circularProgress.setVisibility(View.GONE);
-            pbMcuUpdate.setVisibility(View.GONE);
-            btnCancelDownload.setVisibility(View.GONE);
+            if (progressContainer != null) {
+                progressContainer.setVisibility(View.GONE);
+            }
         }
         
         return view;
@@ -92,6 +97,40 @@ public class McuUpdateFragment extends Fragment {
         if (backgroundExecutor != null && !backgroundExecutor.isShutdown()) {
             backgroundExecutor.shutdown();
         }
+        // 清理下载进度管理器的资源
+        if (downloadProgressManager != null) {
+            downloadProgressManager.hideProgress();
+        }
+    }
+    
+    /**
+     * 初始化下载进度管理器
+     */
+    private void initDownloadProgressManager(View view) {
+        downloadProgressManager = new DownloadProgressManager(requireContext(), view);
+        downloadProgressManager.setCallback(new DownloadProgressManager.DownloadControlCallback() {
+            @Override
+            public void onPauseResumeClicked(boolean isPaused) {
+                // 处理暂停/继续下载
+                if (isPaused) {
+                    // 暂停下载逻辑
+                    OssManager ossManager = new OssManager(requireContext());
+                    ossManager.pauseDownload();
+                } else {
+                    // 继续下载逻辑
+                    if (currentMcuUpdateInfo != null && downloadFile != null) {
+                        OssManager ossManager = new OssManager(requireContext());
+                        ossManager.resumeDownload(currentMcuUpdateInfo.getKey(), downloadFile.getAbsolutePath());
+                    }
+                }
+            }
+            
+            @Override
+            public void onCancelClicked() {
+                // 处理取消下载
+                showCancelDownloadDialog();
+            }
+        });
     }
     
     private void fetchCurrentMcuVersion() {
@@ -119,6 +158,7 @@ public class McuUpdateFragment extends Fragment {
                     currentMcuUpdateInfo = result;
                     mainThreadHandler.post(() -> {
                         if (isAdded()) {
+                            tvLatestMcuVersion.setText(getString(R.string.latest_version_label, result.getVersion()));
                             showStatus(getString(R.string.status_mcu_update_available, result.getVersion()), false);
                             btnDownloadMcuUpdate.setEnabled(true);
                         }
@@ -159,15 +199,20 @@ public class McuUpdateFragment extends Fragment {
         
         btnCheckMcuUpdate.setEnabled(false);
         btnDownloadMcuUpdate.setEnabled(false);
-        btnCancelDownload.setVisibility(View.VISIBLE);
-        progressContainer.setVisibility(View.VISIBLE);
+        
+        // 显示下载进度UI
+        if (downloadProgressManager != null) {
+            downloadProgressManager.reset();
+            downloadProgressManager.showProgress();
+        }
         
         File downloadDir = new File(requireContext().getExternalFilesDir(null), "downloads");
         if (!downloadDir.exists()) {
             downloadDir.mkdirs();
         }
         
-        downloadFile = new File(downloadDir, "mcu_update.zip");
+        String fileName = currentMcuUpdateInfo.getKey().substring(currentMcuUpdateInfo.getKey().lastIndexOf('/') + 1);
+        downloadFile = new File(downloadDir, fileName);
         OssManager ossManager = new OssManager(requireContext());
         
         ossManager.downloadUpdate(currentMcuUpdateInfo.getKey(), downloadFile.getAbsolutePath(), 
@@ -177,9 +222,17 @@ public class McuUpdateFragment extends Fragment {
                     int progress = totalSize > 0 ? (int) ((currentSize * 100) / totalSize) : 0;
                     mcuDownloadProgress = progress;
                     mcuDownloadStatus = getString(R.string.status_downloading, progress);
+                    
                     mainThreadHandler.post(() -> {
                         if (isAdded()) {
-                            showProgress(mcuDownloadStatus, progress);
+                            // 使用下载进度管理器更新UI
+                            if (downloadProgressManager != null) {
+                                downloadProgressManager.updateProgress(
+                                    currentSize, 
+                                    totalSize, 
+                                    getString(R.string.downloading_update, progress + "%")
+                                );
+                            }
                         }
                     });
                 }
@@ -188,25 +241,17 @@ public class McuUpdateFragment extends Fragment {
                 public void onSuccess() {
                     com.example.otaupdate.MainActivity.setDownloading(false);
                     isMcuDownloading = false;
+                    
                     mainThreadHandler.post(() -> {
                         if (isAdded()) {
-                            showProgress(getString(R.string.status_download_complete), 100);
-                            showProgress(getString(R.string.status_extracting), -1);
-                            btnCancelDownload.setVisibility(View.GONE);
-                            // 延迟一段时间后显示移动文件状态
-                            mainThreadHandler.postDelayed(() -> {
-                                if (isAdded()) {
-                                    showProgress(getString(R.string.status_moving_files), -1);
-                                    // 再延迟一段时间后显示完成状态并弹出重启对话框
-                                    mainThreadHandler.postDelayed(() -> {
-                                        if (isAdded()) {
-                                            progressContainer.setVisibility(View.GONE);
-                                            showStatus(getString(R.string.status_update_ready), false);
-                                            showRebootDialog();
-                                        }
-                                    }, 2000);
-                                }
-                            }, 2000);
+                            // 隐藏下载进度UI
+                            if (downloadProgressManager != null) {
+                                downloadProgressManager.hideProgress();
+                            }
+                            
+                            showStatus(getString(R.string.status_download_complete), false);
+                            btnCheckMcuUpdate.setEnabled(true);
+                            showRebootDialog();
                         }
                     });
                 }
@@ -215,10 +260,14 @@ public class McuUpdateFragment extends Fragment {
                 public void onFailure(@NonNull Exception e) {
                     com.example.otaupdate.MainActivity.setDownloading(false);
                     isMcuDownloading = false;
+                    
                     mainThreadHandler.post(() -> {
                         if (isAdded()) {
-                            progressContainer.setVisibility(View.GONE);
-                            btnCancelDownload.setVisibility(View.GONE);
+                            // 隐藏下载进度UI
+                            if (downloadProgressManager != null) {
+                                downloadProgressManager.hideProgress();
+                            }
+                            
                             showStatus(getString(R.string.status_error_download, e.getMessage()), true);
                             btnCheckMcuUpdate.setEnabled(true);
                             btnDownloadMcuUpdate.setEnabled(true);
@@ -230,67 +279,48 @@ public class McuUpdateFragment extends Fragment {
     
     private void showCancelDownloadDialog() {
         new AlertDialog.Builder(requireContext())
-            .setTitle(R.string.confirm_cancel_download_title)
-            .setMessage(R.string.confirm_cancel_download_message)
-            .setPositiveButton(R.string.ok, (dialog, which) -> {
+            .setTitle(R.string.confirm_cancel_title)
+            .setMessage(R.string.confirm_cancel_message)
+            .setPositiveButton(R.string.btn_confirm, (dialog, which) -> {
                 cancelDownload();
             })
-            .setNegativeButton(R.string.cancel, null)
+            .setNegativeButton(R.string.btn_no, null)
             .show();
     }
     
     private void cancelDownload() {
-        // 取消下载任务
-        OssManager ossManager = new OssManager(requireContext());
-        ossManager.cancelDownload();
-        
-        // 删除已下载的文件
-        if (downloadFile != null && downloadFile.exists()) {
-            downloadFile.delete();
+        if (isMcuDownloading) {
+            // 取消下载任务
+            OssManager ossManager = new OssManager(requireContext());
+            ossManager.cancelDownload();
+            
+            isMcuDownloading = false;
+            com.example.otaupdate.MainActivity.setDownloading(false);
+            
+            // 隐藏下载进度UI
+            if (downloadProgressManager != null) {
+                downloadProgressManager.hideProgress();
+            }
+            
+            btnCheckMcuUpdate.setEnabled(true);
+            btnDownloadMcuUpdate.setEnabled(true);
+            showStatus(getString(R.string.status_download_cancelled), false);
+            
+            // 删除临时下载文件
+            if (downloadFile != null && downloadFile.exists()) {
+                downloadFile.delete();
+            }
         }
-        
-        // 重置状态
-        com.example.otaupdate.MainActivity.setDownloading(false);
-        isMcuDownloading = false;
-        mcuDownloadProgress = 0;
-        
-        // 更新UI
-        btnCheckMcuUpdate.setEnabled(true);
-        btnDownloadMcuUpdate.setEnabled(true);
-        btnCancelDownload.setVisibility(View.GONE);
-        progressContainer.setVisibility(View.GONE);
-        
-        showStatus(getString(R.string.download_cancelled), false);
     }
     
-    private void showProgress(String message, int progress) {
-        progressContainer.setVisibility(View.VISIBLE);
-        tvProgressStatus.setVisibility(View.VISIBLE);
-        tvProgressStatus.setText(message);
-        if (progress >= 0) {
-            circularProgress.setVisibility(View.VISIBLE);
-            pbMcuUpdate.setVisibility(View.VISIBLE);
-            circularProgress.setProgress(progress);
-            pbMcuUpdate.setProgress(progress);
-            pbMcuUpdate.setIndeterminate(false);
-            circularProgress.setIndeterminate(false);
-        } else {
-            circularProgress.setVisibility(View.VISIBLE);
-            pbMcuUpdate.setVisibility(View.VISIBLE);
-            pbMcuUpdate.setIndeterminate(true);
-            circularProgress.setIndeterminate(true);
-        }
-        tvMcuUpdateStatus.setVisibility(View.GONE);
-    }
-
     private void showStatus(String message, boolean isError) {
-        tvMcuUpdateStatus.setVisibility(View.VISIBLE);
-        tvMcuUpdateStatus.setText(message);
-        tvMcuUpdateStatus.setTextColor(getResources().getColor(
-            isError ? android.R.color.holo_red_light : android.R.color.white));
-        progressContainer.setVisibility(View.GONE);
-        circularProgress.setVisibility(View.GONE);
-        pbMcuUpdate.setVisibility(View.GONE);
+        if (tvMcuUpdateStatus != null) {
+            tvMcuUpdateStatus.setVisibility(View.VISIBLE);
+            tvMcuUpdateStatus.setText(message);
+            tvMcuUpdateStatus.setTextColor(isError ? 
+                    requireContext().getColor(android.R.color.holo_red_light) : 
+                    requireContext().getColor(android.R.color.white));
+        }
     }
 
     private void showRebootDialog() {
@@ -308,7 +338,7 @@ public class McuUpdateFragment extends Fragment {
             .setCancelable(false)
             .show();
     }
-
+    
     // 提供外部访问静态变量的方法
     public static boolean isDownloading() {
         return isMcuDownloading;
