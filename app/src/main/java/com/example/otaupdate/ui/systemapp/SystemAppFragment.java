@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -167,11 +168,32 @@ public class SystemAppFragment extends Fragment {
     private void fetchCurrentAppVersion() {
         backgroundExecutor.execute(() -> {
             String appBuildTime = DeviceInfoUtils.getAppBuildTime();
+            String cpuModel = DeviceInfoUtils.getCpuModel();
+            String resolution = DeviceInfoUtils.getScreenResolution(requireContext());
+            
+            // 格式化分辨率，确保宽度和高度按规则排序
+            if (resolution != null && resolution.contains("x")) {
+                String[] parts = resolution.split("x");
+                if (parts.length == 2) {
+                    try {
+                        int width = Integer.parseInt(parts[0]);
+                        int height = Integer.parseInt(parts[1]);
+                        if (width < height) {
+                            resolution = height + "x" + width;
+                        }
+                    } catch (NumberFormatException e) {
+                        // 忽略解析错误，使用原始分辨率
+                    }
+                }
+            }
+            
+            final String formattedVersion = cpuModel + "_" + resolution + "_" + appBuildTime;
             localAppBuildTime = appBuildTime;
+            
             mainThreadHandler.post(() -> {
                 if (isAdded()) {
-                    // 不显示任何版本号，因为不需要
-                    tvCurrentSystemAppVersion.setVisibility(View.GONE);
+                    tvCurrentSystemAppVersion.setText(getString(R.string.current_version_label, formattedVersion));
+                    tvCurrentSystemAppVersion.setVisibility(View.VISIBLE); // 确保可见
                 }
             });
         });
@@ -191,13 +213,46 @@ public class SystemAppFragment extends Fragment {
                     mainThreadHandler.post(() -> {
                         if (isAdded()) {
                             tvLatestSystemAppVersion.setText(getString(R.string.latest_version_label, result.getVersion()));
+                            
+                            // 获取本地应用的构建日期（从localAppBuildTime中提取）
                             String localDate = localAppBuildTime != null ? localAppBuildTime.replaceAll("[^0-9]", "") : null;
+                            // 获取OSS上最新应用的构建日期
                             String ossDate = result.getVersion();
-                            if (localDate != null && ossDate != null && localDate.contains(ossDate)) {
-                                showStatus(getString(R.string.status_up_to_date), false);
-                                canDownload = false;
-                                btnDownloadSystemAppUpdate.setAlpha(0.3f);
+                            
+                            // 打印日志，帮助调试版本比较
+                            Log.d("SystemAppFragment", "本地构建日期: " + localDate + ", OSS构建日期: " + ossDate);
+                            
+                            if (localDate != null && ossDate != null) {
+                                // 尝试将日期转换为数字进行比较
+                                try {
+                                    long localDateNum = Long.parseLong(localDate.replaceAll("[^0-9]", ""));
+                                    long ossDateNum = Long.parseLong(ossDate.replaceAll("[^0-9]", ""));
+                                    
+                                    if (localDateNum >= ossDateNum) {
+                                        // 本地版本比OSS版本新或相同，不需要更新
+                                        showStatus(getString(R.string.status_up_to_date), false);
+                                        canDownload = false;
+                                        btnDownloadSystemAppUpdate.setAlpha(0.3f);
+                                    } else {
+                                        // OSS版本比本地版本新，可以更新
+                                        showStatus(getString(R.string.status_update_available), false);
+                                        canDownload = true;
+                                        btnDownloadSystemAppUpdate.setAlpha(1.0f);
+                                    }
+                                } catch (NumberFormatException e) {
+                                    // 如果解析失败，回退到字符串包含检查
+                                    if (localDate.contains(ossDate)) {
+                                        showStatus(getString(R.string.status_up_to_date), false);
+                                        canDownload = false;
+                                        btnDownloadSystemAppUpdate.setAlpha(0.3f);
+                                    } else {
+                                        showStatus(getString(R.string.status_update_available), false);
+                                        canDownload = true;
+                                        btnDownloadSystemAppUpdate.setAlpha(1.0f);
+                                    }
+                                }
                             } else {
+                                // 如果无法获取日期信息，则允许更新
                                 showStatus(getString(R.string.status_update_available), false);
                                 canDownload = true;
                                 btnDownloadSystemAppUpdate.setAlpha(1.0f);

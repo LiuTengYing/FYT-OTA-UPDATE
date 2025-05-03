@@ -239,29 +239,92 @@ public class OssManager {
             ListObjectsRequest request = new ListObjectsRequest(bucketName);
             request.setPrefix(prefix);
             request.setDelimiter("/");
+
+            // 获取当前设备的CPU型号和分辨率
+            String cpuModel = DeviceInfoUtils.getCpuModel();
+            String resolution = DeviceInfoUtils.getScreenResolution(context);
+            String mappedCpuModel = cpuModel;
+            String formattedResolution = resolution;
+
+            // 格式化分辨率，确保宽度和高度按规则排序
+            if (resolution != null && resolution.contains("x")) {
+                String[] parts = resolution.split("x");
+                if (parts.length == 2) {
+                    try {
+                        int width = Integer.parseInt(parts[0]);
+                        int height = Integer.parseInt(parts[1]);
+                        if (width < height) {
+                            formattedResolution = height + "x" + width;
+                            Log.d(TAG, "分辨率格式已调整: " + resolution + " -> " + formattedResolution);
+                        }
+                    } catch (NumberFormatException e) {
+                        Log.w(TAG, "分辨率格式解析失败: " + resolution, e);
+                    }
+                }
+            }
+
+            Log.d(TAG, "查找System APP更新: CPU=" + mappedCpuModel + ", 分辨率=" + formattedResolution);
+
             try {
                 ListObjectsResult result = oss.listObjects(request);
                 UpdateInfo latestUpdate = null;
                 long latestDate = 0L;
                 if (result != null && result.getObjectSummaries() != null) {
+                    Log.d(TAG, "找到" + result.getObjectSummaries().size() + "个对象");
                     for (OSSObjectSummary summary : result.getObjectSummaries()) {
                         String key = summary.getKey();
-                        if (key.endsWith("/") || summary.getSize() <= 0) continue;
+                        Log.d(TAG, "检查对象: " + key + ", 大小: " + summary.getSize());
+                        if (summary.getKey().endsWith("/") || summary.getSize() <= 0) {
+                            Log.d(TAG, "跳过目录或空文件: " + key);
+                            continue;
+                        }
                         String fileName = key.substring(key.lastIndexOf('/') + 1);
+                        Log.d(TAG, "提取文件名: " + fileName);
+                        
+                        // 文件名格式: ALLApp_UIS8581A_1280x800_20250306.zip
                         if (fileName.endsWith(".zip")) {
                             String fileNameWithoutExt = fileName.replace(".zip", "");
                             String[] parts = fileNameWithoutExt.split("_");
-                            String dateStr = parts.length > 1 ? parts[parts.length - 1] : null;
-                            if (dateStr != null && dateStr.matches("\\d{8}")) {
-                                try {
-                                    long currentDate = Long.parseLong(dateStr);
-                                    if (latestUpdate == null || currentDate > latestDate) {
-                                        latestDate = currentDate;
-                                        latestUpdate = new UpdateInfo(dateStr, key);
-                                        Log.d(TAG, "找到System APP更新版本: " + dateStr + ", 文件: " + key);
+                            Log.d(TAG, "文件名分段: " + String.join(", ", parts) + ", 分段数: " + parts.length);
+                            
+                            // 检查是否符合新的命名格式，至少应该有4个部分
+                            if (parts.length >= 4) {
+                                // ALLApp_UIS8581A_1280x800_20250306
+                                String cpuAndRes = parts[1] + "_" + parts[2];
+                                if (cpuAndRes.equalsIgnoreCase(mappedCpuModel + "_" + formattedResolution)) {
+                                    String dateStr = parts[parts.length - 1];
+                                    Log.d(TAG, "提取日期字符串: " + dateStr);
+                                    if (dateStr.matches("\\d{8}")) {
+                                        try {
+                                            long currentDate = Long.parseLong(dateStr);
+                                            if (latestUpdate == null || currentDate > latestDate) {
+                                                latestDate = currentDate;
+                                                latestUpdate = new UpdateInfo(dateStr, key);
+                                                Log.d(TAG, "找到System APP更新版本: " + dateStr + ", 文件: " + key);
+                                            }
+                                        } catch (NumberFormatException e) {
+                                            Log.w(TAG, "日期格式无效: " + dateStr, e);
+                                        }
                                     }
-                                } catch (NumberFormatException e) {
-                                    Log.w(TAG, "System APP日期格式无效: " + dateStr, e);
+                                } else {
+                                    Log.d(TAG, "CPU型号或分辨率不匹配: 期望 " + mappedCpuModel + "_" + formattedResolution + 
+                                           ", 实际 " + cpuAndRes);
+                                }
+                            } else {
+                                // 兼容旧格式，仅根据日期判断
+                                String dateStr = parts.length > 1 ? parts[parts.length - 1] : null;
+                                if (dateStr != null && dateStr.matches("\\d{8}")) {
+                                    Log.d(TAG, "使用旧格式解析: 日期 = " + dateStr);
+                                    try {
+                                        long currentDate = Long.parseLong(dateStr);
+                                        if (latestUpdate == null || currentDate > latestDate) {
+                                            latestDate = currentDate;
+                                            latestUpdate = new UpdateInfo(dateStr, key);
+                                            Log.d(TAG, "找到System APP更新版本: " + dateStr + ", 文件: " + key);
+                                        }
+                                    } catch (NumberFormatException e) {
+                                        Log.w(TAG, "System APP日期格式无效: " + dateStr, e);
+                                    }
                                 }
                             }
                         }
