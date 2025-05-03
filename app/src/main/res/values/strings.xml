@@ -1,0 +1,133 @@
+<resources>
+    <string name="app_name">OTA Update</string>
+    <string name="device_info_title">Device Info</string>
+    <string name="cpu_model_label">CPU Model: %s</string>
+    <string name="resolution_label">Resolution: %s</string>
+    <string name="mcu_version_label">MCU Version: %s</string>
+    <string name="system_build_date_label">System Build Date: %s</string>
+    <string name="app_build_date_label">App Build Date: %s</string>
+    <string name="cpu_model_label_placeholder">CPU Model: Fetching...</string>
+    <string name="resolution_label_placeholder">Resolution: Fetching...</string>
+    <string name="mcu_version_label_placeholder">MCU Version: Fetching...</string>
+    <string name="system_build_date_label_placeholder">System Build Date: Fetching...</string>
+    <string name="app_build_date_label_placeholder">App Build Date: Fetching...</string>
+    <string name="unknown">Unknown</string>
+    <string name="fetching">Fetching...</string>
+
+    <string name="system_update_title">System Update</string>
+    <string name="current_version_label">Current Version: %s</string>
+    <string name="current_version_label_placeholder">Current Version: Fetching...</string>
+    <string name="latest_version_label_unknown">Latest Version: -</string>
+    <string name="latest_version_label">Latest Version: %s</string>
+    <string name="check_for_update">Check Update</string>
+    <string name="download_update">Download &amp; Update</string>
+    <string name="cancel_download">Cancel Download</string>
+    <string name="status_checking">Checking for updates…</string>
+    <string name="status_no_update">System is up to date.</string>
+    <string name="status_update_available">New version available!</string>
+    <string name="status_downloading">Downloading: %d%%</string>
+    <string name="status_download_complete">Download complete</string>
+    <string name="status_installing">Installing update…</string>
+    <string name="status_unzipping">Extracting: %d%%</string>
+    <string name="status_unzip_complete">Extraction complete.</string>
+    <string name="status_moving_files">Moving files…</string>
+    <string name="status_move_complete">Files moved successfully.</string>
+    <string name="status_rebooting">Rebooting device...</string>
+    <string name="status_error_check">Check update error: %s</string>
+    <string name="status_error_download">Download error: %s</string>
+    <string name="status_error_unzip">Error unzipping file: %s</string>
+    <string name="status_error_move">File move error: %s</string>
+    <string name="status_error_reboot">Cannot automatically reboot device, manual reboot required.</string>
+    <string name="status_error_permission">Storage permission denied.</string>
+    <string name="permission_request_title">Storage Permission Required</string>
+    <string name="permission_request_message">This app needs storage permission to work properly:
+
+• Download system and MCU update files
+• Extract and install update files
+• Save update logs
+
+Without this permission, the app cannot check and install updates.</string>
+    <string name="permission_request_message_all_files">This app needs full file management permission to work properly:
+
+• Download system and MCU update files
+• Extract and install update files
+• Save update logs
+
+Without this permission, the app cannot check and install updates.
+
+Please enable "Allow management of all files" permission in system settings.</string>
+    <string name="error_get_device_info">Error occurred while getting device info</string>
+    <string name="error_cpu_resolution_unknown">Unable to get CPU or resolution info</string>
+    <string name="error_reboot">Cannot automatically reboot device, please reboot manually.</string>
+    <string name="status_error_no_network">No network connection.</string>
+    <string name="status_error_generic">An error occurred.</string>
+
+    <string name="system_app_title">System App</string>
+    <string name="app_version_title">App Version</string>
+
+    <string name="mcu_update_title">MCU Update</string>
+    <string name="current_mcu_label">Current MCU: %s</string>
+    <string name="current_mcu_label_placeholder">Current MCU: Fetching...</string>
+    <string name="status_mcu_update_available">MCU update available: %s</string>
+    <string name="status_no_mcu_update">No MCU update found for this device.</string>
+    <string name="confirm_update_title">Confirm Update</string>
+    <string name="confirm_update_message">Current version is up to date. Do you still want to update?</string>
+    <string name="btn_ignore">Ignore</string>
+    <string name="btn_update">Update</string>
+
+    <string name="error">Error</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm_reboot_title">Confirm Reboot</string>
+    <string name="confirm_reboot_message">The device will reboot to apply the update. Ensure the device is powered. Proceed?</string>
+    <string name="reboot_dialog_title">Update Ready</string>
+    <string name="reboot_dialog_message">The update has been downloaded and prepared. Device needs to reboot to recovery mode to complete the update.</string>
+    <string name="reboot_dialog_confirm">Reboot Now</string>
+    <string name="reboot_dialog_later">Later</string>
+    <string name="build_time_label_placeholder">Build Time: Unknown</string>
+    <string name="build_time_label">Build Time: %s</string>
+
+    <string name="app_version_label">App Version: %s</string>
+    <string name="app_version_label_placeholder">App Version: Fetching...</string>
+
+    <!-- Navigation Labels -->
+    <string name="nav_device_info">Device Info</string>
+    <string name="nav_system">System</string>
+    <string name="nav_mcu">MCU</string>
+    <string name="nav_system_app">System App</string>
+
+    <string name="reboot_dialog_ok">OK</string>
+    <string name="status_extracting">Extracting files...</string>
+    <string name="status_update_ready">Update ready</string>
+
+    <string name="download_in_progress_warning">A download is in progress. Please wait until it completes before starting another.</string>
+
+    <string name="status_up_to_date">Current version is up to date. No update needed.</string>
+
+    <string name="force_update_title">Force Update</string>
+    <string name="force_update_message">Current version is up to date. Do you want to force update?</string>
+    <string name="force_update_confirm">Yes</string>
+    <string name="force_update_cancel">No</string>
+    <string name="status_force_update_unlocked">Force update unlocked. You can now update.</string>
+    
+    <!-- 取消下载和退出提示 -->
+    <string name="download_cancelled">Download cancelled</string>
+    <string name="confirm_cancel_download_title">Cancel Download</string>
+    <string name="confirm_cancel_download_message">Are you sure you want to cancel the download? Downloaded files will be deleted.</string>
+    <string name="confirm_exit_title">Exit Application</string>
+    <string name="confirm_exit_message">A download is in progress. If you exit now, the download will continue in the background.</string>
+    <string name="confirm_exit_downloading_message">A download is in progress. If you exit now, the download will be cancelled. Are you sure you want to exit?</string>
+
+    <!-- 应用更新相关 -->
+    <string name="new_version_available">New Version Available</string>
+    <string name="update_message">Update Content:\n%s</string>
+    <string name="downloading">Downloading</string>
+    <string name="downloading_update">Downloading new version: %s</string>
+    <string name="download_failed">Download failed: %s</string>
+    <string name="no_app_to_open_apk">No application can open this APK file</string>
+    <string name="app_up_to_date">Already up to date</string>
+    <string name="no_update_available">No update available</string>
+    <string name="check_update_failed">Check update failed: %s</string>
+
+    <string name="later">Later</string>
+</resources>

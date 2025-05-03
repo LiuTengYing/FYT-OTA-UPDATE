@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/navigation_device_info">
+
+    <fragment
+        android:id="@+id/navigation_device_info"
+        android:name="com.example.otaupdate.ui.device.DeviceInfoFragment"
+        android:label="@string/device_info_title" />
+
+    <fragment
+        android:id="@+id/navigation_system_update"
+        android:name="com.example.otaupdate.ui.system.SystemUpdateFragment"
+        android:label="@string/system_update_title" />
+
+    <fragment
+        android:id="@+id/navigation_mcu_update"
+        android:name="com.example.otaupdate.ui.mcu.McuUpdateFragment"
+        android:label="@string/mcu_update_title" />
+
+    <fragment
+        android:id="@+id/navigation_system_app"
+        android:name="com.example.otaupdate.ui.systemapp.SystemAppFragment"
+        android:label="@string/system_app_title" />
+</navigation>

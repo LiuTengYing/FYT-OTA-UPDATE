@@ -1,0 +1,8 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.OTAUpdate" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- 将状态栏颜色设置为Android默认的透明色 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- 夜间模式下状态栏图标使用浅色 -->
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

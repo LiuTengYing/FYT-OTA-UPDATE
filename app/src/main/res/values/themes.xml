@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.OTAUpdate" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- 将状态栏颜色设置为Android默认的透明色 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- 根据系统主题自动调整状态栏图标颜色 -->
+        <item name="android:windowLightStatusBar">?attr/isLightTheme</item>
+        <item name="bottomNavigationStyle">@style/Widget.App.BottomNavigationView</item>
+    </style>
+
+    <style name="Widget.App.BottomNavigationView" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="materialThemeOverlay">@style/ThemeOverlay.App.BottomNavigationView</item>
+        <item name="itemRippleColor">@android:color/transparent</item>
+        <item name="itemActiveIndicatorStyle">@null</item>
+    </style>
+
+    <style name="ThemeOverlay.App.BottomNavigationView" parent="">
+        <item name="colorSurface">@android:color/transparent</item>
+        <item name="colorOnSurface">@android:color/white</item>
+        <item name="colorSecondary">@android:color/transparent</item>
+    </style>
+</resources>
