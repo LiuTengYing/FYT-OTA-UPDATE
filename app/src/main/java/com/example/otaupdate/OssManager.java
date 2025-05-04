@@ -69,9 +69,9 @@ public class OssManager {
     }
 
     public OssManager(@NonNull Context context) {
-        String ossEndpoint = "https://oss-ap-southeast-1.aliyuncs.com";
-        String accessKeyId = "LTAI5tHZRBzop6SQJBRXfjUG";
-        String accessKeySecret = "CGYrtHahbigDUBPGFXSVHafqz3OjwM"; 
+        String ossEndpoint = "";
+        String accessKeyId = "";
+        String accessKeySecret = ""; 
         String securityToken = ""; 
         
         this.context = context; // 保存原始 context
